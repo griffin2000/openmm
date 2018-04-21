@@ -8,12 +8,27 @@
 #   OpenMM.lib
 #   OpenMM_static.lib
 # Unix:
-#   libOpenMM.so
+#   libOpenMM.2
 #   libOpenMM_static.a
 #----------------------------------------------------
 
 find_package(PythonInterp)
 mark_as_advanced(CLEAR PYTHON_EXECUTABLE)
+
+
+if( "${CMAKE_C_COMPILER}" MATCHES "emcc" )
+	set(USING_EMSCRIPTEN TRUE)
+else()
+	set(USING_EMSCRIPTEN FALSE)
+endif()
+
+if(USING_EMSCRIPTEN)
+	set(MODULE_EXTENSION ".bc")
+	add_definitions(-DUSING_EMSCRIPTEN=1)  
+
+
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -std=gnu++11 -s WASM=1")
+endif()
 
 # Don't create a new project name if this is part of a mega-build from the
 # parent directory
@@ -69,7 +84,7 @@ ENDIF(${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT})
 
 # The source is organized into subdirectories, but we handle them all from
 # this CMakeLists file rather than letting CMake visit them as SUBDIRS.
-SET(OPENMM_SOURCE_SUBDIRS . openmmapi olla libraries/jama libraries/quern libraries/lepton libraries/sfmt libraries/lbfgs libraries/hilbert libraries/csha1 platforms/reference serialization libraries/irrxml libraries/vecmath)
+SET(OPENMM_SOURCE_SUBDIRS . openmmapi olla libraries/jama libraries/quern libraries/lepton libraries/sfmt libraries/lbfgs libraries/hilbert libraries/csha1 platforms/reference serialization libraries/irrxml )
 IF(WIN32)
     SET(OPENMM_SOURCE_SUBDIRS ${OPENMM_SOURCE_SUBDIRS} libraries/pthreads)
 ELSE(WIN32)
@@ -112,7 +127,7 @@ ELSE (APPLE AND (NOT PNACL))
             SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4305 /wd4244")
         ENDIF (MSVC)
     ELSE (MSVC OR ANDROID OR PNACL)
-        SET(EXTRA_COMPILE_FLAGS "-msse2")
+        #SET(EXTRA_COMPILE_FLAGS "-msse3")
     ENDIF (MSVC OR ANDROID OR PNACL)
 ENDIF (APPLE AND (NOT PNACL))
 
@@ -220,18 +235,18 @@ FOREACH(subdir ${OPENMM_SOURCE_SUBDIRS})
     INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/${subdir}/include)
 ENDFOREACH(subdir)
 IF (ANDROID OR PNACL)
-    SET_SOURCE_FILES_PROPERTIES(${CMAKE_SOURCE_DIR}/libraries/sfmt/src/SFMT.cpp PROPERTIES COMPILE_FLAGS "-UHAVE_SSE2")
+    #SET_SOURCE_FILES_PROPERTIES(${CMAKE_SOURCE_DIR}/libraries/sfmt/src/SFMT.cpp PROPERTIES COMPILE_FLAGS "-UHAVE_SSE2")
 ELSE (ANDROID OR PNACL)
-    SET_SOURCE_FILES_PROPERTIES(${CMAKE_SOURCE_DIR}/libraries/sfmt/src/SFMT.cpp PROPERTIES COMPILE_FLAGS "-DHAVE_SSE2=1")
+    #SET_SOURCE_FILES_PROPERTIES(${CMAKE_SOURCE_DIR}/libraries/sfmt/src/SFMT.cpp PROPERTIES COMPILE_FLAGS "-DHAVE_SSE2=1")
 ENDIF(ANDROID OR PNACL)
-IF (NOT (ANDROID OR PNACL OR (WIN32 AND OPENMM_BUILD_STATIC_LIB)))
+IF (0)
     FILE(GLOB src_files ${CMAKE_CURRENT_SOURCE_DIR}/libraries/asmjit/*/*.cpp)
     FILE(GLOB incl_files ${CMAKE_CURRENT_SOURCE_DIR}/libraries/asmjit/*.h)
     SET(SOURCE_FILES ${SOURCE_FILES} ${src_files})
     SET(SOURCE_INCLUDE_FILES ${SOURCE_INCLUDE_FILES} ${incl_files})
     INCLUDE_DIRECTORIES(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/libraries/asmjit")
     SET(EXTRA_COMPILE_FLAGS "${EXTRA_COMPILE_FLAGS} -DLEPTON_USE_JIT")
-ENDIF (NOT (ANDROID OR PNACL OR (WIN32 AND OPENMM_BUILD_STATIC_LIB)))
+ENDIF (0)
 
 # If API wrappers are being generated, and add them to the build.
 SET(OPENMM_BUILD_C_AND_FORTRAN_WRAPPERS ON CACHE BOOL "Build wrappers for C and Fortran")
@@ -314,8 +329,7 @@ IF(OPENMM_BUILD_CUDA_LIB)
 ENDIF(OPENMM_BUILD_CUDA_LIB)
 
 # OpenCL platform
-
-FIND_PACKAGE(OpenCL QUIET)
+#FIND_PACKAGE(OpenCL QUIET)
 IF(OPENCL_FOUND)
     SET(OPENMM_BUILD_OPENCL_LIB ON CACHE BOOL "Build OpenMMOpenCL library")
 ELSE(OPENCL_FOUND)

@@ -95,6 +95,13 @@ static int getNumProcessors() {
 #else
 #if !defined(__ANDROID__) && !defined(__PNACL__)
     static void cpuid(int cpuInfo[4], int infoType){
+		
+#if 1
+		cpuInfo[0]=0;
+		cpuInfo[1]=0;
+		cpuInfo[2]=0;
+		cpuInfo[3]=0;
+#else
     #ifdef __LP64__
         __asm__ __volatile__ (
             "cpuid":
@@ -117,6 +124,8 @@ static int getNumProcessors() {
             "a" (infoType)
         );
     #endif
+	
+#endif
     }
     #endif
 #endif

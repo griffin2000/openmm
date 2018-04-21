@@ -32,14 +32,95 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
  * -------------------------------------------------------------------------- */
 
-#include <smmintrin.h>
+//#include <tmmintrin.h>
 #include "hardware.h"
+#define SIMDE_SSE_NO_NATIVE 1
+#define SIMDE_AVX_NO_NATIVE 1
+#include "simde/x86/sse4.2.h"
+
+#define __m128 simde__m128
+#define __m128i simde__m128i
+
+#define _mm_floor_ps     simde_mm_floor_ps
+#define _mm_ceil_ps      simde_mm_ceil_ps
+#define _mm_mullo_epi32  simde_mm_mullo_epi32
+#define _mm_round_ps  simde_mm_round_ps
+#define _MM_FROUND_TO_NEAREST_INT  SIMDE_MM_FROUND_TO_NEAREST_INT
+#define _mm_dp_ps simde_mm_dp_ps
+#define _mm_min_epi32 simde_mm_min_epi32
+#define _mm_max_epi32 simde_mm_max_epi32
+#define _mm_storeu_ps simde_mm_storeu_ps
+#define _mm_add_ps simde_mm_add_ps
+#define _mm_sub_ps simde_mm_add_ps
+#define _mm_div_ps simde_mm_div_ps
+#define _mm_mul_ps simde_mm_mul_ps
+#define _mm_and_ps simde_mm_and_ps
+#define _mm_or_ps simde_mm_or_ps
+#define _mm_cmpge_ps simde_mm_cmpge_ps
+#define _mm_cmple_ps simde_mm_cmple_ps
+#define _mm_cmpgt_ps simde_mm_cmpgt_ps
+#define _mm_cmplt_ps simde_mm_cmplt_ps
+#define _mm_cmpeq_ps simde_mm_cmpeq_ps
+#define _mm_cmpneq_ps simde_mm_cmpneq_ps
+#define _mm_set1_ps simde_mm_set1_ps
+#define _mm_set1_epi32 simde_mm_set1_epi32
+#define _mm_set_ps simde_mm_set_ps
+#define _mm_set_epi32 simde_mm_set_epi32
+#define _mm_loadu_ps simde_mm_loadu_ps
+#define _mm_add_epi32 simde_mm_add_epi32
+#define _mm_cvtepi32_ps simde_mm_cvtepi32_ps
+#define _mm_cvttps_epi32 simde_mm_cvttps_epi32
+#define _mm_min_ps simde_mm_min_ps
+#define _mm_max_ps simde_mm_max_ps
+#define _mm_xor_si128 simde_mm_xor_si128
+#define _mm_sqrt_ps simde_mm_sqrt_ps
+#define _mm_rsqrt_ps simde_mm_rsqrt_ps
+#define _mm_castsi128_ps simde_mm_castsi128_ps
+#define _mm_cvtss_f32 simde_mm_cvtss_f32
+#define _MM_SHUFFLE SIMDE_MM_SHUFFLE
+#define _mm_shuffle_ps simde_mm_shuffle_ps
+#define _mm_loadu_si128 simde_mm_loadu_si128
+#define _mm_cmplt_epi32 simde_mm_cmplt_epi32
+#define _mm_sub_epi32 simde_mm_sub_epi32
+#define _mm_add_epi32 simde_mm_add_epi32
+#define _mm_storeu_si128 simde_mm_storeu_si128
+#define _mm_and_si128 simde_mm_and_si128
+#define _mm_or_si128 simde_mm_or_si128
+#define _mm_cmpeq_epi32 simde_mm_cmpeq_epi32
+#define _mm_cmpneq_epi32 simde_mm_cmpneq_epi32
+#define _mm_cmpgt_epi32 simde_mm_cmpgt_epi32
+#define _mm_cmplt_epi32 simde_mm_cmplt_epi32
+#define _mm_cmpge_epi32 simde_mm_cmpge_epi32
+#define _mm_cmple_epi32 simde_mm_cmple_epi32
+#define _mm_abs_epi32 simde_mm_abs_epi32
+#define _mm_unpacklo_ps simde_mm_unpacklo_ps
+#define _mm_unpackhi_ps simde_mm_unpackhi_ps
+#define _mm_test_all_zeros simde_mm_test_all_zeros
+#define _mm_blendv_ps simde_mm_blendv_ps
+
+
+static void _MM_TRANSPOSE4_PS(__m128 & v0, __m128 & v1, __m128 v2, __m128 v3)
+{
+    __m128 a0 = _mm_unpacklo_ps(v0, v1); /* a0 = { x0, x1, y0, y1 } */
+    __m128 a1 = _mm_unpackhi_ps(v0, v1); /* a1 = { z0, z1, z0, z1 } */
+
+    __m128 a2 = _mm_unpacklo_ps(v2, v3); /* a2 = { x2, x3, y2, y3 } */
+    __m128 a3 = _mm_unpackhi_ps(v2, v3); /* a3 = { z2, z3, z2, z3 } */
+
+    v0 = _mm_unpacklo_ps(a0, a2); /* v0 = { x0, x1, x2, x3 } */
+    v1 = _mm_unpackhi_ps(a0, a2); /* v1 = { y0, y1, y2, y3 } */
+
+    v2 = _mm_unpacklo_ps(a1, a3); /* v2 = { z0, z1, z2, z3 } */
+    v3 = _mm_unpackhi_ps(a1, a3); /* v3 = { w0, w1, w2, w3 } */
+}
+
 
 // This file defines classes and functions to simplify vectorizing code with SSE.
 
 // These two functions are defined in the vecmath library, which is linked into OpenMM.
 __m128 exp_ps(__m128);
 __m128 log_ps(__m128);
+
 
 /**
  * Determine whether ivec4 and fvec4 are supported on this processor.
@@ -132,6 +213,7 @@ public:
     }
     operator ivec4() const;
 };
+
 
 /**
  * A four element vector of ints.
@@ -274,13 +356,13 @@ static inline float dot4(const fvec4& v1, const fvec4& v2) {
 }
 
 static inline fvec4 cross(const fvec4& v1, const fvec4& v2) {
-    fvec4 temp = fvec4(_mm_mul_ps(v1, _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(3, 0, 2, 1)))) -
-                 fvec4(_mm_mul_ps(v2, _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(3, 0, 2, 1))));
-    return _mm_shuffle_ps(temp, temp, _MM_SHUFFLE(3, 0, 2, 1));
+    fvec4 temp = fvec4(_mm_mul_ps(v1, _mm_shuffle_ps(v2.val, v2.val, _MM_SHUFFLE(3, 0, 2, 1)))) -
+                 fvec4(_mm_mul_ps(v2, _mm_shuffle_ps(v1.val, v1.val, _MM_SHUFFLE(3, 0, 2, 1))));
+    return _mm_shuffle_ps(temp.val, temp.val, _MM_SHUFFLE(3, 0, 2, 1));
 }
 
 static inline void transpose(fvec4& v1, fvec4& v2, fvec4& v3, fvec4& v4) {
-    _MM_TRANSPOSE4_PS(v1, v2, v3, v4);
+    _MM_TRANSPOSE4_PS(v1.val, v2.val, v3.val, v4.val);
 }
 
 // Functions that operate on ivec4s.
